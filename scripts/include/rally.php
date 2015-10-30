@@ -1,6 +1,23 @@
 <?
 //rally commands
+//
 
+/*
+- add tasks and defects to user stories
+- add the ability to mention a rally item
+- add multiple items
+ */
+
+/*
+	https://rally1.rallydev.com/slm/webservice/v2.0/artifact?query=(FormattedID%20%3D%20US3186)
+	https://rally1.rallydev.com/slm/webservice/v2.0/hierarchicalrequirement/39607234501
+	https://rally1.rallydev.com/slm/webservice/v2.0/task/41698502352
+
+	https://rally1.rallydev.com/slm/webservice/v2.0/defect?query=(FormattedID%20%3D%20DE282)
+
+	https://rally1.rallydev.com/slm/webservice/v2.0/artifact?query=(FormattedID%20%3D%20TA4037)
+	https://rally1.rallydev.com/slm/webservice/v2.0/task/43858101418
+ */
 
 function HandleItem($slackCommand, $rallyFormattedId)
 {
@@ -13,8 +30,11 @@ function HandleItem($slackCommand, $rallyFormattedId)
 		die;
 		break;
 	case "US":
-	case "TA":
 		return HandleStory($rallyFormattedId, $slackCommand->ChannelName);
+		die;
+		break;
+	case "TA" :
+		return HandleTask($rallyFormattedId, $slackCommand->ChannelName);
 		die;
 		break;
 	default:
@@ -45,7 +65,6 @@ function HandleDefect($id, $channel_name)
 	return $result;
 }
 
-
 function HandleStory($id, $channel_name)
 {
 	$ref = FindRequirement($id);
@@ -53,11 +72,32 @@ function HandleStory($id, $channel_name)
 	$payload = GetRequirementPayload($ref);
 
 	$result = postit($channel_name, $payload->text, $payload->attachments);
-	
+
 	if($result=='Invalid channel specified'){
 	    die("Sorry, the rallyme command can't post messages to your private chat.\n");
 	}
-	
+
+	if($result!="ok"){
+		print_r($result."\n");
+		print_r(json_encode($payload));
+		print_r("\n");
+		die("Apparently the Rallyme script is having a problem. Ask <https://cim.slack.com/team/tdm|@tdm> about it. :frowning:");
+	}
+	return $result;
+}
+
+function HandleTask($id, $channel_name)
+{
+	$ref = FindTask($id);
+
+	$payload = GetRequirementPayload($ref);
+
+	$result = postit($channel_name, $payload->text, $payload->attachments);
+
+	if($result=='Invalid channel specified'){
+	    die("Sorry, the rallyme command can't post messages to your private chat.\n");
+	}
+
 	if($result!="ok"){
 		print_r($result."\n");
 		print_r(json_encode($payload));
@@ -71,14 +111,13 @@ function postit($channel_name, $payload, $attachments){
 	global $config, $slackCommand;
 
 	return slack_incoming_hook_post_with_attachments(
-		$config['slack']['hook'], 
-		$config['rally']['botname'], 
-		$slackCommand->ChannelName, 
-		$config['rally']['boticon'], 
-		$payload, 
+		$config['slack']['hook'],
+		$config['rally']['botname'],
+		$slackCommand->ChannelName,
+		$config['rally']['boticon'],
+		$payload,
 		$attachments);
 }
-
 
 
 function GetRallyAttachmentLink($attachmentRef)
@@ -106,6 +145,7 @@ function GetDefectPayload($ref)
 	$projecturi = $defect->Project->_ref;
 
 	$title = $defect->_refObjectName;
+	$type = $defect->_type;
 	$description = $defect->Description;
 	$owner = $defect->Owner->_refObjectName;
 	$submitter = $defect->SubmittedBy->_refObjectName;
@@ -169,9 +209,9 @@ function GetDefectPayload($ref)
 		array_push($fields,$firstattachment);
 
 	global $slackCommand;
-	
+
 	$userlink = BuildUserLink($slackCommand->UserName);
-	$user_message = "Ok, {$userlink}, here's the defect you requested.";
+	$user_message = "Ok, {$userlink}, here's the {$type} you requested.";
 
 	$obj = new stdClass;
 	$obj->text = "";
@@ -184,14 +224,17 @@ function GetRequirementPayload($ref)
 	$object = CallAPI($ref);
 
 	$requirement = null;
+	$type = null;
 
 	if($object->HierarchicalRequirement)
 	{
 		$requirement = $object->HierarchicalRequirement;
+		$type = "User Story";
 	}
 	elseif($object->Task)
 	{
 		$requirement = $object->Task;
+		$type = "Task";
 	}
 	else
 	{
@@ -205,7 +248,6 @@ function GetRequirementPayload($ref)
 	$projecturi = $requirement->Project->_ref;
 
 	$title = $requirement->_refObjectName;
-
 
 	$ProjectFull = CallAPI($projecturi);
 	$projectid = $ProjectFull->Project->ObjectID;
@@ -245,8 +287,6 @@ function GetRequirementPayload($ref)
 
 	$dovegray = "#CEC7B8";
 
-
-
 	$fields = array(
 		MakeField("link",$linktext,false),
 		MakeField("parent",$parent,false),
@@ -265,7 +305,7 @@ function GetRequirementPayload($ref)
 
 		if($blocked)
 			array_push($fields, MakeField("blocked",$blockedreason,true));
-		
+
 		array_push($fields, MakeField("description",$short_description,false));
 
 		if($firstattachment!=null)
@@ -274,16 +314,15 @@ function GetRequirementPayload($ref)
 
 	global $slackCommand;
 	$userlink = BuildUserLink($slackCommand->UserName);
-	$user_message = "Ok {$userlink}, here's the story you requested.";
+	$user_message = "Ok {$userlink}, here's the {$type} you requested.";
 
 	$obj = new stdClass;
 	$obj->text = "";
 	$obj->attachments = MakeAttachment($user_message, "", $dovegray, $fields, $storyuri);
-//	print_r(json_encode($obj));die;
+	//	print_r(json_encode($obj));die;
 
 	return $obj;
 }
-
 
 function MakeField($title, $value, $short=false)
 {
@@ -310,7 +349,6 @@ function CallAPI($uri)
 	return $object;
 }
 
-
 function GetProjectID($projectref)
 {
 	$ProjectFull = CallAPI($projectref);
@@ -323,13 +361,26 @@ function FindRequirement($id)
 	$query = GetArtifactQueryUri($id);
 
 	$searchresult = CallAPI($query);
-//	print_r($searchresult);die;
+	//	print_r($searchresult);die;
 
 	$count = GetCount($searchresult);
 	if($count == 0)
 		NotFound($id);
 
 	return GetFirstObjectFromSearchResult("HierarchicalRequirement", $searchresult);
+}
+
+function FindTask($id)
+{
+	$query = GetArtifactQueryUri($id);
+
+	$searchresult = CallAPI($query);
+
+	$count = GetCount($searchresult);
+	if($count == 0)
+		NotFound($id);
+
+	return GetFirstObjectFromSearchResult("Task", $searchresult);
 }
 
 function BuildUserLink($username)
@@ -373,7 +424,6 @@ function NotFound($id)
 	$userlink = BuildUserLink($slackCommand->UserName);
 	print_r("Sorry {$userlink}, I couldn't find {$id}");die;
 }
-
 
 function GetFirstObjectFromSearchResult($objectName, $result)
 {

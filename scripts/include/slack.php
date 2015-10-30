@@ -1,4 +1,5 @@
 <?
+
 //slack methods
 require_once('log.php');
 
@@ -14,6 +15,7 @@ user_name=Steve
 command=/weather
 text=94070
 */
+
 function BuildSlashCommand($request)
 {
 	$cmd = new stdClass();
@@ -30,10 +32,10 @@ function BuildSlashCommand($request)
 }
 
 
-function slack_incoming_hook_post($uri, $user, $channel, $icon, $emoji, $payload){
-	
+function slack_incoming_hook_post($uri, $user, $channel, $icon, $emoji, $payload)
+{
 	$data = array(
-		"text" => $payload, 
+		"text" => $payload,
 		"channel" => "#".$channel,
 		"username"=>$user
 		);
@@ -49,39 +51,35 @@ function slack_incoming_hook_post($uri, $user, $channel, $icon, $emoji, $payload
 
 	$data_string = "payload=" . json_encode($data, JSON_HEX_AMP|JSON_HEX_APOS|JSON_NUMERIC_CHECK|JSON_PRETTY_PRINT);
 
-	mylog('sent.txt',$data_string);
+	mylog('sent.txt', $data_string);
 	return curl_post($uri, $data_string);
 }
 
 
 
-function slack_incoming_hook_post_with_attachments($uri, $user, $channel, $icon, $payload, $attachments){
-
+function slack_incoming_hook_post_with_attachments($uri, $user, $channel, $icon, $payload, $attachments)
+{
 	$data = array(
-		"text" => $payload, 
+		"text" => $payload,
 		"channel" => "#".$channel,
-		"username"=>$user,
-		"icon_url"=>$icon,
-		"attachments"=>array($attachments));
+		"username" => $user,
+		"icon_url" => $icon,
+		"attachments" => array($attachments));
 
 	$data_string = "payload=" . json_encode($data, JSON_HEX_AMP|JSON_HEX_APOS|JSON_NUMERIC_CHECK|JSON_PRETTY_PRINT);
-	mylog('sent.txt',$data_string);
+	mylog('sent.txt', $data_string);
 	return curl_post($uri, $data_string);
 }
 
 
 
+/** slack attachment format */
 /*
-slack attachment format
-
 {
 	"fallback": "Required text summary of the attachment that is shown by clients that understand attachments but choose not to show them.",
-
 	"text": "Optional text that should appear within the attachment",
 	"pretext": "Optional text that should appear above the formatted data",
-
 	"color": "#36a64f", // Can either be one of 'good', 'warning', 'danger', or any hex color code
-
 	// Fields are displayed in a table on the message
 	"fields": [
 		{
@@ -92,8 +90,8 @@ slack attachment format
 	]
 }
 */
-function MakeAttachment($pretext, $text, $color, $fields, $fallback){
-
+function MakeAttachment($pretext, $text, $color, $fields, $fallback)
+{
 	$obj = new stdClass;
 	$obj->fallback = $fallback;
 	$obj->text = $text;
@@ -105,4 +103,5 @@ function MakeAttachment($pretext, $text, $color, $fields, $fallback){
 
 	return $obj;
 }
+
 ?>
